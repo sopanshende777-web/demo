@@ -1,0 +1,924 @@
+
+I'll generate a complete, production-ready AI-Powered Indian Stock Market Suggestion Web App with all requested features and proper structure. Due to complexity, I'll provide the core structure and key files, focusing on modularity and deployability.
+
+Project Structure
+indian-stock-advisor/
+├── frontend/
+│   ├── public/
+│   │   └── index.html
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── dashboard/
+│   │   │   │   ├── Dashboard.jsx
+│   │   │   │   ├── MarketIndices.jsx
+│   │   │   │   └── TopPerformers.jsx
+│   │   │   ├── stocks/
+│   │   │   │   ├── StockSearch.jsx
+│   │   │   │   ├── StockCard.jsx
+│   │   │   │   └── StockDetails.jsx
+│   │   │   ├── portfolio/
+│   │   │   │   ├── PortfolioBuilder.jsx
+│   │   │   │   └── SIP Calculator.jsx
+│   │   │   ├── watchlist/
+│   │   │   │   └── Watchlist.jsx
+│   │   │   ├── layout/
+│   │   │   │   ├── Header.jsx
+│   │   │   │   └── ThemeToggle.jsx
+│   │   │   └── ai/
+│   │   │       ├── AIRecommendation.jsx
+│   │   │       └── StockAnalysis.jsx
+│   │   ├── hooks/
+│   │   │   ├── useStockData.js
+│   │   │   └── useWatchlist.js
+│   │   ├── utils/
+│   │   │   ├── api.js
+│   │   │   ├── constants.js
+│   │   │   └── formatters.js
+│   │   ├── styles/
+│   │   │   ├── globals.css
+│   │   │   └── tailwind.css
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── router.jsx
+│   ├── package.json
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   └── vite.config.js
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── deps.py
+│   │   │   ├── endpoints/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── market.py
+│   │   │   │   ├── stocks.py
+│   │   │   │   ├── portfolio.py
+│   │   │   │   ├── news.py
+│   │   │   │   └── ai.py
+│   │   │   └── __init__.py
+│   │   │
+│   │   ├── core/
+│   │   │   ├── config.py
+│   │   │   ├── security.py
+│   │   │   └── exceptions.py
+│   │   │
+│   │   ├── models/
+│   │   │   ├── __init__.py
+│   │   │   ├── stock.py
+│   │   │   └── user.py
+│   │   │
+│   │   ├── schemas/
+│   │   │   ├── __init__.py
+│   │   │   ├── stock.py
+│   │   │   └── portfolio.py
+│   │   │
+│   │   ├── services/
+│   │   │   ├── stock_service.py
+│   │   │   ├── portfolio_service.py
+│   │   │   ├── news_service.py
+│   │   │   └── ai_engine.py
+│   │   │
+│   │   ├── db/
+│   │   │   ├── base.py
+│   │   │   └── session.py
+│   │   │
+│   │   ├── utils/
+│   │   │   ├── cache.py
+│   │   │   └── formatters.py
+│   │   │
+│   │   └── main.py
+│   │
+│   ├── alembic/
+│   ├── tests/
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   ├── alembic.ini
+│   └── pyproject.toml
+├── docker-compose.yml
+├── .gitignore
+└── README.md
+Key Files Implementation
+1. Backend - FastAPI (backend/app/main.py)
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import uvicorn
+from app.api.endpoints import market, stocks, portfolio, news, ai
+from app.core.config import settings
+from app.db.session import engine
+from app.models import Base
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="Indian Stock Advisor API",
+    description="AI-Powered Indian Stock Market Suggestion Web App",
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
+)
+
+# CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(market.router, prefix="/api/v1/market", tags=["market"])
+app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["stocks"])
+app.include_router(portfolio.router, prefix="/api/v1/portfolio", tags=["portfolio"])
+app.include_router(news.router, prefix="/api/v1/news", tags=["news"])
+app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])
+
+@app.get("/")
+async def root():
+    return {"message": "Indian Stock Advisor API", "status": "running"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+2. AI Recommendation Engine (backend/app/services/ai_engine.py)
+import numpy as np
+from typing import Dict, List
+from app.models.stock import Stock
+from app.schemas.stock import StockRecommendation
+
+class AIRecommendationEngine:
+    def __init__(self):
+        self.weights = {
+            'valuation': 0.25,
+            'growth': 0.20,
+            'debt': 0.15,
+            'profitability': 0.20,
+            'technical': 0.20
+        }
+    
+    def calculate_valuation_score(self, stock: Stock) -> float:
+        """Calculate valuation score based on PE, PB, Market Cap"""
+        pe_score = max(0, 100 - (stock.pe_ratio * 2)) if stock.pe_ratio else 50
+        pb_score = max(0, 100 - (stock.pb_ratio * 20)) if stock.pb_ratio else 50
+        return (pe_score + pb_score) / 2
+    
+    def calculate_growth_score(self, stock: Stock) -> float:
+        """Calculate growth score based on revenue/profit growth"""
+        revenue_growth_score = min(100, max(0, stock.revenue_growth * 10 + 50))
+        profit_growth_score = min(100, max(0, stock.profit_growth * 15 + 50))
+        return (revenue_growth_score + profit_growth_score) / 2
+    
+    def calculate_debt_score(self, stock: Stock) -> float:
+        """Calculate debt score (lower debt = higher score)"""
+        if not stock.debt_to_equity:
+            return 80
+        debt_score = max(0, 100 - (stock.debt_to_equity * 20))
+        return debt_score
+    
+    def calculate_profitability_score(self, stock: Stock) -> float:
+        """Calculate profitability score based on ROE, ROCE"""
+        roe_score = min(100, max(0, stock.roe * 2))
+        roce_score = min(100, max(0, stock.roce * 1.5))
+        return (roe_score + roce_score) / 2
+    
+    def calculate_technical_score(self, stock: Stock) -> float:
+        """Simplified technical score (would use real indicators in production)"""
+        # Placeholder - in production would use RSI, MACD, moving averages
+        price_change_1m = getattr(stock, 'price_change_1m', 0) or 0
+        technical_score = 50 + (price_change_1m * 10)  # Simplified
+        return max(0, min(100, technical_score))
+    
+    def generate_recommendation(self, stock: Stock) -> StockRecommendation:
+        """Generate AI-powered stock recommendation"""
+        scores = {
+            'valuation': self.calculate_valuation_score(stock),
+            'growth': self.calculate_growth_score(stock),
+            'debt': self.calculate_debt_score(stock),
+            'profitability': self.calculate_profitability_score(stock),
+            'technical': self.calculate_technical_score(stock)
+        }
+        
+        # Weighted final score
+        final_score = sum(scores[key] * self.weights[key] for key in scores)
+        final_score = max(0, min(100, final_score))
+        
+        # Determine recommendation
+        if final_score >= 90:
+            recommendation = "STRONG BUY"
+            action = "BUY"
+        elif final_score >= 75:
+            recommendation = "BUY"
+            action = "BUY"
+        elif final_score >= 60:
+            recommendation = "HOLD"
+            action = "HOLD"
+        else:
+            recommendation = "AVOID"
+            action = "SELL"
+        
+        # Generate analysis
+        strengths, weaknesses, opportunities, risks = self._generate_analysis(stock, scores)
+        
+        return StockRecommendation(
+            symbol=stock.symbol,
+            recommendation=recommendation,
+            action=action,
+            score=round(final_score, 1),
+            valuation_score=round(scores['valuation'], 1),
+            growth_score=round(scores['growth'], 1),
+            debt_score=round(scores['debt'], 1),
+            profitability_score=round(scores['profitability'], 1),
+            technical_score=round(scores['technical'], 1),
+            strengths=strengths,
+            weaknesses=weaknesses,
+            opportunities=opportunities,
+            risks=risks
+        )
+    
+    def _generate_analysis(self, stock: Stock, scores: Dict) -> tuple:
+        """Generate qualitative analysis"""
+        strengths = []
+        weaknesses = []
+        opportunities = []
+        risks = []
+        
+        # Strengths
+        if stock.roe and stock.roe > 0.15:
+            strengths.append("High ROE (>15%)")
+        if stock.debt_to_equity and stock.debt_to_equity < 0.5:
+            strengths.append("Low Debt to Equity (<0.5)")
+        if stock.profit_growth and stock.profit_growth > 0.1:
+            strengths.append("Consistent Profit Growth")
+        if scores['valuation'] > 70:
+            strengths.append("Attractive Valuation")
+        
+        # Weaknesses
+        if stock.pe_ratio and stock.pe_ratio > 30:
+            weaknesses.append("High Valuation (P/E > 30)")
+        if stock.revenue_growth and stock.revenue_growth < 0.05:
+            weaknesses.append("Slowing Revenue Growth")
+        if stock.debt_to_equity and stock.debt_to_equity > 1.0:
+            weaknesses.append("High Debt Levels")
+        
+        # Opportunities (sector-based examples)
+        sector_opportunities = {
+            'BANKING': ["RBI Policy Support", "Digital Banking Growth"],
+            'IT': ["Digital Transformation Demand", "Cloud Adoption"],
+            'ENERGY': ["Renewable Energy Push", "Infrastructure Spending"],
+            'DEFAULT': ["Sector Growth Potential", "Government Policies"]
+        }
+        opportunities = sector_opportunities.get(stock.sector, sector_opportunities['DEFAULT'])
+        
+        # Risks
+        risks = [
+            "Market Volatility",
+            "Economic Slowdown",
+            "Sector Competition",
+            "Regulatory Changes"
+        ]
+        
+        return strengths, weaknesses, opportunities, risks
+3. Portfolio Builder (backend/app/services/portfolio_service.py)
+from typing import List, Dict
+from app.models.stock import Stock
+from app.schemas.portfolio import PortfolioAllocation, PortfolioRecommendation
+
+class PortfolioService:
+    def __init__(self):
+        # Pre-defined stock baskets by risk profile
+        self.conservative_stocks = [
+            {"symbol": "HDFCBANK", "weight": 0.3},
+            {"symbol": "ICICIBANK", "weight": 0.25},
+            {"symbol": "HINDUNILVR", "weight": 0.2},
+            {"symbol": "ITC", "weight": 0.15},
+            {"symbol": "LT", "weight": 0.1}
+        ]
+        
+        self.moderate_stocks = [
+            {"symbol": "INFY", "weight": 0.25},
+            {"symbol": "TCS", "weight": 0.2},
+            {"symbol": "HDFCBANK", "weight": 0.2},
+            {"symbol": "RELIANCE", "weight": 0.15},
+            {"symbol": "LT", "weight": 0.1},
+            {"symbol": "MARUTI", "weight": 0.1}
+        ]
+        
+        self.aggressive_stocks = [
+            {"symbol": "ADANIENT", "weight": 0.2},
+            {"symbol": "TATAMOTORS", "weight": 0.15},
+            {"symbol": "SBIN", "weight": 0.15},
+            {"symbol": "RELIANCE", "weight": 0.15},
+            {"symbol": "INFY", "weight": 0.1},
+            {"symbol": "TCS", "weight": 0.1},
+            {"symbol": "AXISBANK", "weight": 0.1},
+            {"symbol": "LT", "weight": 0.05}
+        ]
+    
+    def generate_portfolio(
+        self, 
+        investment_amount: float, 
+        risk_profile: str
+    ) -> PortfolioRecommendation:
+        """Generate portfolio allocation based on risk profile"""
+        
+        stock_basket = {
+            "conservative": self.conservative_stocks,
+            "moderate": self.moderate_stocks,
+            "aggressive": self.aggressive_stocks
+        }.get(risk_profile.lower(), self.moderate_stocks)
+        
+        allocations = []
+        total_allocated = 0
+        
+        for stock_info in stock_basket:
+            amount = investment_amount * stock_info["weight"]
+            allocations.append(PortfolioAllocation(
+                symbol=stock_info["symbol"],
+                percentage=stock_info["weight"] * 100,
+                amount=round(amount, 2)
+            ))
+            total_allocated += amount
+        
+        # Adjust for rounding
+        remaining = investment_amount - total_allocated
+        if allocations:
+            allocations[0].amount += remaining
+        
+        expected_return = {
+            "conservative": 8.0,
+            "moderate": 12.0,
+            "aggressive": 16.0
+        }.get(risk_profile.lower(), 12.0)
+        
+        return PortfolioRecommendation(
+            investment_amount=investment_amount,
+            risk_profile=risk_profile.lower(),
+            expected_annual_return=expected_return,
+            allocations=allocations,
+            total_invested=investment_amount
+        )
+4. Frontend - Main App (frontend/src/App.jsx)
+import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider } from './theme/themeContext';
+import { WatchlistProvider } from './hooks/useWatchlist';
+import AppRouter from './router';
+import './styles/globals.css';
+
+function App() {
+  return (
+    
+      
+        
+          
+        
+      
+    
+  );
+}
+
+export default App;
+5. Dashboard Component (frontend/src/components/dashboard/Dashboard.jsx)
+import React, { useEffect, useState } from 'react';
+import { useStockData } from '../../hooks/useStockData';
+import MarketIndices from './MarketIndices';
+import TopPerformers from './TopPerformers';
+import MarketSentiment from './MarketSentiment';
+
+const Dashboard = () => {
+  const { marketData, loading, error } = useStockData('market');
+  const [indices, setIndices] = useState([]);
+
+  useEffect(() => {
+    if (marketData) {
+      setIndices([
+        { name: 'NIFTY 50', value: marketData.nifty50?.value || 0, change: marketData.nifty50?.change || 0 },
+        { name: 'SENSEX', value: marketData.sensex?.value || 0, change: marketData.sensex?.change || 0 },
+        { name: 'BANK NIFTY', value: marketData.banknifty?.value || 0, change: marketData.banknifty?.change || 0 }
+      ]);
+    }
+  }, [marketData]);
+
+  if (loading) return Loading market data...;
+  if (error) return Error loading data;
+
+  return (
+    
+      Market Overview
+      
+      
+      
+    
+  );
+};
+
+export default Dashboard;
+6. AI Recommendation Component (frontend/src/components/ai/AIRecommendation.jsx)
+import React, { useState } from 'react';
+import { useStockData } from '../../hooks/useStockData';
+import StockCard from '../stocks/StockCard';
+
+const AIRecommendation = () => {
+  const { data: stockData, loading, error } = useStockData('recommendations');
+  const [selectedStock, setSelectedStock] = useState(null);
+
+  const handleStockSelect = (symbol) => {
+    setSelectedStock(symbol);
+  };
+
+  if (loading) return Generating AI recommendations...;
+  if (error) return Error loading recommendations;
+
+  return (
+    
+      AI-Powered Recommendations
+      
+        {stockData?.map(stock => (
+           handleStockSelect(stock.symbol)}
+            isSelected={selectedStock === stock.symbol}
+          />
+        ))}
+      
+      
+      {selectedStock && (
+        
+          Detailed Analysis: {selectedStock}
+          {/* In real app, would fetch detailed analysis for selected stock */}
+          Click on any stock above to see detailed AI analysis
+        
+      )}
+    
+  );
+};
+
+export default AIRecommendation;
+7. Stock Search Component (frontend/src/components/stocks/StockSearch.jsx)
+import React, { useState } from 'react';
+import { useStockData } from '../../hooks/useStockData';
+
+const StockSearch = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const { data: searchResults, loading, error } = useStockData(`search/${searchTerm}`);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    // Trigger search with current term
+  };
+
+  if (loading && !searchResults) return Searching...;
+
+  return (
+    
+      
+         setSearchTerm(e.target.value)}
+          placeholder="Search for stocks (e.g., RELIANCE, HDFCBANK)..."
+          className="flex-1 px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        
+          Search
+        
+      
+      
+      {error && Search error: {error}}
+      
+      {searchResults && searchResults.length > 0 && (
+        
+          Search Results
+          
+            {searchResults.map(stock => (
+              
+                
+                  
+                    {stock.symbol}
+                    {stock.name}
+                  
+                  
+                    ₹{stock.current_price}
+                    = 0 ? 'text-green-600' : 'text-red-600'}>
+                      {stock.change}% ({stock.change_amount})
+                    
+                  
+                
+              
+            ))}
+          
+        
+      )}
+      
+      {searchResults && searchResults.length === 0 && searchTerm && (
+        No stocks found for "{searchTerm}"
+      )}
+    
+  );
+};
+
+export default StockSearch;
+8. Theme Context (frontend/src/theme/themeContext.jsx)
+import React, { createContext, useState, useEffect } from 'react';
+
+const ThemeContext = createContext();
+
+export const ThemeProvider = ({ children }) => {
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
+  return (
+    
+      {children}
+    
+  );
+};
+
+export default ThemeContext;
+9. Watchlist Hook (frontend/src/hooks/useWatchlist.js)
+import { useState, useEffect } from 'react';
+
+export const useWatchlist = () => {
+  const [watchlist, setWatchlist] = useState(() => {
+    const saved = localStorage.getItem('watchlist');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('watchlist', JSON.stringify(watchlist));
+  }, [watchlist]);
+
+  const addToWatchlist = (stock) => {
+    if (!watchlist.find(item => item.symbol === stock.symbol)) {
+      setWatchlist([...watchlist, stock]);
+    }
+  };
+
+  const removeFromWatchlist = (symbol) => {
+    setWatchlist(watchlist.filter(item => item.symbol !== symbol));
+  };
+
+  const toggleWatchlist = (stock) => {
+    const exists = watchlist.find(item => item.symbol === stock.symbol);
+    if (exists) {
+      removeFromWatchlist(stock.symbol);
+    } else {
+      addToWatchlist(stock);
+    }
+  };
+
+  return { watchlist, addToWatchlist, removeFromWatchlist, toggleWatchlist };
+};
+10. API Utility (frontend/src/utils/api.js)
+const API_BASE_URL = process.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+
+export const fetchAPI = async (endpoint, options = {}) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    throw error;
+  }
+};
+
+// Stock-related APIs
+export const stockAPI = {
+  getMarketData: () => fetchAPI('/market/overview'),
+  searchStocks: (query) => fetchAPI(`/stocks/search?q=${query}`),
+  getStockDetails: (symbol) => fetchAPI(`/stocks/${symbol}`),
+  getRecommendations: () => fetchAPI('/ai/recommendations'),
+  analyzeStock: (symbol) => fetchAPI(`/ai/analyze/${symbol}`)
+};
+
+// Portfolio APIs
+export const portfolioAPI = {
+  generatePortfolio: (amount, risk) => 
+    fetchAPI('/portfolio/generate', {
+      method: 'POST',
+      body: JSON.stringify({ amount, risk_profile: risk })
+    })
+};
+
+// News APIs
+export const newsAPI = {
+  getMarketNews: () => fetchAPI('/news/latest')
+};
+11. Custom Hook for Stock Data (frontend/src/hooks/useStockData.js)
+import { useState, useEffect } from 'react';
+import { stockAPI } from '../utils/api';
+
+export const useStockData = (endpoint) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        let result;
+        if (endpoint === 'market') {
+          result = await stockAPI.getMarketData();
+        } else if (endpoint.startsWith('search/')) {
+          const query = endpoint.split('/')[1];
+          result = await stockAPI.searchStocks(query);
+        } else if (endpoint === 'recommendations') {
+          result = await stockAPI.getRecommendations();
+        } else {
+          result = null;
+        }
+        
+        if (isMounted) {
+          setData(result);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.message);
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [endpoint]);
+
+  return { data, loading, error };
+};
+12. Requirements Files
+Backend (backend/requirements.txt)
+fastapi==0.104.1
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+sqlalchemy==2.0.23
+alembic==1.13.1
+python-dotenv==1.0.0
+requests==2.31.0
+yfinance==0.2.38
+pandas==2.1.3
+numpy==1.26.2
+scikit-learn==1.3.2
+redis==5.0.1
+cachetools==5.3.2
+python-multipart==0.0.6
+Frontend (frontend/package.json)
+{
+  "name": "indian-stock-advisor-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "recharts": "^2.10.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "vite": "^5.0.8"
+  }
+}
+13. Docker Configuration
+Backend Dockerfile (backend/Dockerfile)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+Frontend Dockerfile (frontend/Dockerfile)
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+Docker Compose (docker-compose.yml)
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./stock_advisor.db
+      - BACKEND_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+    volumes:
+      - ./backend/data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Optional: Add Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+14. README.md
+# Indian Stock Advisor
+
+An AI-powered web application for Indian stock market analysis and investment suggestions.
+
+## Features
+
+- **Real-time Market Data**: Nifty 50, Sensex, Bank Nifty indices
+- **Stock Search & Details**: Comprehensive stock information with financial metrics
+- **AI Recommendation Engine**: Buy/Hold/Sell suggestions based on valuation, growth, debt, profitability, and technical analysis
+- **Portfolio Builder**: Smart allocation based on investment amount and risk profile
+- **SIP Calculator**: Calculate future wealth from systematic investments
+- **Market News**: Latest stock market news and updates
+- **Watchlist**: Track your favorite stocks (localStorage persistence)
+- **Dark/Light Mode**: Modern UI with theme switching
+- **Responsive Design**: Mobile-friendly interface
+
+## Tech Stack
+
+### Frontend
+- React 18 + Vite
+- Tailwind CSS
+- Recharts (for charts)
+- Zustand/Jotai (state management)
+
+### Backend
+- Python FastAPI
+- SQLite (upgradeable to PostgreSQL)
+- SQLModel/ORM
+- Redis (caching)
+
+### Deployment
+- Docker & Docker Compose
+- Render (Backend)
+- Vercel (Frontend)
+
+## Installation
+
+### Prerequisites
+- Node.js 18+
+- Python 3.11+
+- Docker & Docker Compose (for containerized deployment)
+- Git
+
+### Local Development
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/indian-stock-advisor.git
+cd indian-stock-advisor
+Install backend dependencies:
+cd backend
+pip install -r requirements.txt
+Install frontend dependencies:
+cd ../frontend
+npm install
+Set up environment variables:
+# Backend (.env)
+DATABASE_URL=sqlite:///./stock_advisor.db
+BACKEND_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# Frontend (.env)
+VITE_API_BASE_URL=http://localhost:8000/api/v1
+Run the application:
+# Terminal 1 - Backend
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Terminal 2 - Frontend
+cd frontend
+npm run dev
+Docker Deployment
+docker-compose up --build
+The app will be available at:
+
+Frontend: http://localhost:5173
+Backend API: http://localhost:8000
+API Docs: http://localhost:8000/api/docs
+Environment Variables
+Backend (.env)
+# Database
+DATABASE_URL=sqlite:///./stock_advisor.db
+
+# Security
+SECRET_KEY=your-secret-key-here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# CORS
+BACKEND_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# External APIs (for real data)
+YAHOO_FINANCE_ENABLED=true
+Frontend (.env)
+VITE_API_BASE_URL=http://localhost:8000/api/v1
+Deployment
+Render (Backend)
+Push code to GitHub
+Create new Web Service on Render
+Connect your repository
+Set build command: pip install -r requirements.txt
+Set start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+Add environment variables from .env file
+Deploy
+Vercel (Frontend)
+Push code to GitHub
+Import project on Vercel
+Framework: Vite
+Add environment variable: VITE_API_BASE_URL (your Render backend URL)
+Deploy
+Manual Docker Deployment
+# Build and run
+docker-compose up -d
+
+# Stop and remove
+docker-compose down
+API Endpoints
+Market Data
+GET /api/v1/market/overview - Market indices and sentiment
+GET /api/v1/market/indices/{index} - Specific index data
+Stocks
+GET /api/v1/stocks/search?q={query} - Search stocks
+GET /api/v1/stocks/{symbol} - Stock details
+GET /api/v1/stocks/{symbol}/recommendation - AI recommendation
+Portfolio
+POST /api/v1/portfolio/generate - Generate portfolio allocation
+{
+  "amount": 5000,
+  "risk_profile": "moderate"
+}
+AI Analysis
+GET /api/v1/ai/recommendations - Top AI recommendations
+GET /api/v1/ai/analyze/{symbol} - Detailed stock analysis
+News
+GET /api/v1/news/latest - Latest market news
+Project Structure
+indian-stock-advisor/
+├── frontend/                 # React + Vite application
+├── backend/                  # FastAPI application
+├── docker-compose.yml        # Docker orchestration
+├── .gitignore               # Git ignore rules
+└── README.md                # This file
+Production Considerations
